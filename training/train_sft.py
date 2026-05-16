@@ -61,8 +61,8 @@ def main():
     model_path = Path(args.model).resolve()
     device_map = "cpu" if use_cpu else "auto"
 
-    # T4 supports fp16 well; bf16 is not supported.
-    model_dtype = torch.float32 if use_cpu else torch.float16
+    # Keep trainable params in fp32; AMP fp16 is handled by Trainer/autocast.
+    model_dtype = torch.float32
 
     # Check if it's a local path, load locally; otherwise load from HF
     if model_path.exists():
@@ -111,6 +111,10 @@ def main():
         label_pad_token_id=-100,
     )
 
+    updates_per_epoch = max(1, len(train_ds) // max(1, args.bs * args.grad_accum))
+    total_updates = max(1, updates_per_epoch * max(1, args.epochs))
+    warmup_steps = max(1, int(args.warmup_ratio * total_updates))
+
     targs_kwargs = dict(
         output_dir=args.out,
         num_train_epochs=args.epochs,
@@ -127,7 +131,7 @@ def main():
         gradient_accumulation_steps=args.grad_accum,
         max_grad_norm=0.5,
         weight_decay=args.weight_decay,
-        warmup_ratio=args.warmup_ratio,
+        warmup_steps=warmup_steps,
         lr_scheduler_type="cosine",
         fp16=use_cuda,
         bf16=False,
