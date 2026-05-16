@@ -1,0 +1,4 @@
+models/
+training/checkpoints/
+**/__pycache__/
+*.pyc
