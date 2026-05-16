@@ -1,6 +1,7 @@
 import argparse
 import json
 import inspect
+import os
 from pathlib import Path
 
 import torch
@@ -56,10 +57,10 @@ def main():
     ap.add_argument("--data", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--epochs", type=int, default=1)
-    ap.add_argument("--bs", type=int, default=2)
+    ap.add_argument("--bs", type=int, default=1)
     ap.add_argument("--lr", type=float, default=2e-5)
-    ap.add_argument("--grad-accum", type=int, default=8, help="Gradient accumulation steps")
-    ap.add_argument("--max-len", type=int, default=512, help="Max token length")
+    ap.add_argument("--grad-accum", type=int, default=16, help="Gradient accumulation steps")
+    ap.add_argument("--max-len", type=int, default=256, help="Max token length")
     ap.add_argument("--warmup-ratio", type=float, default=0.03)
     ap.add_argument("--weight-decay", type=float, default=0.01)
     ap.add_argument("--save-steps", type=int, default=200)
@@ -70,12 +71,23 @@ def main():
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--resume-from-checkpoint", default=None)
     ap.add_argument("--chat-template", action="store_true", help="Build SFT samples with tokenizer chat template")
+    ap.add_argument("--oom-safe", action="store_true", help="Auto-adjust params for low-VRAM GPUs")
     ap.add_argument("--use-cpu", action="store_true", help="Force CPU even if CUDA is available")
     args = ap.parse_args()
     set_seed(args.seed)
 
     use_cpu = args.use_cpu or not torch.cuda.is_available()
     use_cuda = not use_cpu
+    if use_cuda:
+        os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.allow_tf32 = True
+        if args.oom_safe:
+            total_gb = torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
+            if total_gb <= 16.5:
+                args.bs = min(args.bs, 1)
+                args.max_len = min(args.max_len, 256)
+                args.grad_accum = max(args.grad_accum, 16)
 
     # Convert to absolute path if relative
     model_path = Path(args.model).resolve()
@@ -108,7 +120,10 @@ def main():
 
     # Enable gradient checkpointing to save memory
     if hasattr(model, "gradient_checkpointing_enable"):
-        model.gradient_checkpointing_enable()
+        try:
+            model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
+        except TypeError:
+            model.gradient_checkpointing_enable()
     if hasattr(model, "config"):
         model.config.use_cache = False
 
