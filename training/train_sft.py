@@ -9,6 +9,7 @@ from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     DataCollatorForSeq2Seq,
+    EarlyStoppingCallback,
     Trainer,
     TrainingArguments,
 )
@@ -44,6 +45,11 @@ def main():
     ap.add_argument("--weight-decay", type=float, default=0.01)
     ap.add_argument("--save-steps", type=int, default=200)
     ap.add_argument("--logging-steps", type=int, default=10)
+    ap.add_argument("--eval-ratio", type=float, default=0.1, help="Validation split ratio")
+    ap.add_argument("--eval-steps", type=int, default=20)
+    ap.add_argument("--early-stopping-patience", type=int, default=3)
+    ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--resume-from-checkpoint", default=None)
     ap.add_argument("--use-cpu", action="store_true", help="Force CPU even if CUDA is available")
     args = ap.parse_args()
 
@@ -94,6 +100,9 @@ def main():
         return x
 
     ds = ds.map(tok_fn, batched=True, remove_columns=["text"])
+    split = ds.train_test_split(test_size=args.eval_ratio, seed=args.seed)
+    train_ds = split["train"]
+    eval_ds = split["test"]
     data_collator = DataCollatorForSeq2Seq(
         tokenizer=tok,
         model=model,
@@ -107,8 +116,14 @@ def main():
         per_device_train_batch_size=args.bs,
         learning_rate=args.lr,
         logging_steps=args.logging_steps,
+        evaluation_strategy="steps",
+        eval_steps=args.eval_steps,
+        save_strategy="steps",
         save_steps=args.save_steps,
         save_total_limit=1,
+        load_best_model_at_end=True,
+        metric_for_best_model="eval_loss",
+        greater_is_better=False,
         report_to="none",
         gradient_accumulation_steps=args.grad_accum,
         max_grad_norm=0.5,
@@ -133,10 +148,12 @@ def main():
     trainer = Trainer(
         model=model,
         args=targs,
-        train_dataset=ds,
+        train_dataset=train_ds,
+        eval_dataset=eval_ds,
         data_collator=data_collator,
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=args.early_stopping_patience)],
     )
-    trainer.train()
+    trainer.train(resume_from_checkpoint=args.resume_from_checkpoint)
     trainer.save_model(args.out)
     tok.save_pretrained(args.out)
 
