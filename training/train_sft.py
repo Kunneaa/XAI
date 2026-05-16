@@ -1,6 +1,5 @@
 import argparse
 import json
-import os
 import inspect
 from pathlib import Path
 
@@ -13,6 +12,7 @@ from transformers import (
     EarlyStoppingCallback,
     Trainer,
     TrainingArguments,
+    set_seed,
 )
 
 
@@ -30,6 +30,24 @@ def build_text(row):
         "### Input\n" + row["input"] + "\n\n"
         "### Output\n" + row["output"]
     )
+
+
+def build_chat_text(tok, row):
+    user_text = (
+        f"Instruction:\n{row['instruction']}\n\n"
+        f"Input:\n{row['input']}\n\n"
+        "Return JSON only."
+    )
+    assistant_text = row["output"]
+    messages = [
+        {"role": "system", "content": "You are a precise reasoning assistant for logic and physics problems."},
+        {"role": "user", "content": user_text},
+        {"role": "assistant", "content": assistant_text},
+    ]
+    try:
+        return tok.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
+    except Exception:
+        return build_text(row)
 
 
 def main():
@@ -51,8 +69,10 @@ def main():
     ap.add_argument("--early-stopping-patience", type=int, default=3)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--resume-from-checkpoint", default=None)
+    ap.add_argument("--chat-template", action="store_true", help="Build SFT samples with tokenizer chat template")
     ap.add_argument("--use-cpu", action="store_true", help="Force CPU even if CUDA is available")
     args = ap.parse_args()
+    set_seed(args.seed)
 
     use_cpu = args.use_cpu or not torch.cuda.is_available()
     use_cuda = not use_cpu
@@ -93,7 +113,10 @@ def main():
         model.config.use_cache = False
 
     rows = load_jsonl(Path(args.data))
-    ds = Dataset.from_list([{"text": build_text(r)} for r in rows])
+    if args.chat_template:
+        ds = Dataset.from_list([{"text": build_chat_text(tok, r)} for r in rows])
+    else:
+        ds = Dataset.from_list([{"text": build_text(r)} for r in rows])
 
     def tok_fn(batch):
         x = tok(batch["text"], truncation=True, max_length=args.max_len)
@@ -137,6 +160,7 @@ def main():
         bf16=False,
         dataloader_pin_memory=use_cuda,
         optim="adamw_torch_fused" if use_cuda else "adamw_torch",
+        seed=args.seed,
     )
     ta_params = inspect.signature(TrainingArguments.__init__).parameters
     # Transformers compatibility: some versions use eval_strategy/save_strategy,

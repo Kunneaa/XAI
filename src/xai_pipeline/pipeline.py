@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 from .data import load_split
 from .llm_client import LLMClient, load_llm_config
 from .logic_engine import LogicEngine
+from .normalizer import normalize_logic_answer, normalize_unit, split_answer_number_unit
 from .physics_engine import PhysicsEngine
 
 
@@ -89,8 +90,18 @@ class XAIPipeline:
         result.setdefault("premises", [])
         result.setdefault("confidence", 0.0)
         result.setdefault("meta", {})
+        if task == "logic":
+            result["answer"] = normalize_logic_answer(str(result.get("answer", "")))
+        else:
+            num, unit = split_answer_number_unit(str(result.get("answer", "")))
+            if num is not None:
+                nu = normalize_unit(unit)
+                result["answer"] = f"{num:g} {nu}".strip()
+            elif unit:
+                result["answer"] = f"{str(result.get('answer', '')).strip()} {normalize_unit(unit)}".strip()
         result["meta"].update(
             {
+                "task": task,
                 "split": self.data_split,
                 "llm_enabled": self.llm.config.enabled,
                 "llm_ready": self.llm.ready,

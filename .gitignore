@@ -1,4 +1,5 @@
 models/
 training/checkpoints/
+training/competition_sft.jsonl
 **/__pycache__/
 *.pyc
