@@ -5,7 +5,13 @@ import platform
 from pathlib import Path
 
 from datasets import Dataset
-from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    DataCollatorForSeq2Seq,
+    Trainer,
+    TrainingArguments,
+)
 
 
 def load_jsonl(path: Path):
@@ -66,6 +72,9 @@ def main():
             device_map=device_map,
             low_cpu_mem_usage=True,
         )
+    if tok.pad_token is None:
+        tok.pad_token = tok.eos_token
+    model.config.pad_token_id = tok.pad_token_id
 
     # Enable gradient checkpointing to save memory
     if hasattr(model, "gradient_checkpointing_enable"):
@@ -80,6 +89,12 @@ def main():
         return x
 
     ds = ds.map(tok_fn, batched=True, remove_columns=["text"])
+    data_collator = DataCollatorForSeq2Seq(
+        tokenizer=tok,
+        model=model,
+        padding=True,
+        label_pad_token_id=-100,
+    )
 
     targs = TrainingArguments(
         output_dir=args.out,
@@ -98,7 +113,12 @@ def main():
         bf16=False,
     )
 
-    trainer = Trainer(model=model, args=targs, train_dataset=ds)
+    trainer = Trainer(
+        model=model,
+        args=targs,
+        train_dataset=ds,
+        data_collator=data_collator,
+    )
     trainer.train()
     trainer.save_model(args.out)
     tok.save_pretrained(args.out)
