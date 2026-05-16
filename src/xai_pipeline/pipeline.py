@@ -24,6 +24,23 @@ class XAIPipeline:
     def route(question: str, premises_nl: Optional[List[str]]) -> str:
         if premises_nl and len(premises_nl) > 0:
             return "logic"
+        q = (question or "").lower()
+        logic_cues = [
+            "does it follow that",
+            "is it true that",
+            "therefore",
+            "premise",
+            "conclusion",
+            "all ",
+            " if ",
+            " then ",
+            "a.",
+            "b.",
+            "c.",
+            "d.",
+        ]
+        if any(cue in q for cue in logic_cues):
+            return "logic"
         return "physics"
 
     @staticmethod

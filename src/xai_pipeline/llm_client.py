@@ -40,13 +40,6 @@ class LLMClient:
             self.error = "LLM disabled by XAI_USE_LLM=0"
             return
 
-        if not self._is_model_allowed(self.config.model_id):
-            self.error = (
-                f"Model `{self.config.model_id}` is blocked by policy. "
-                "Use an open-source model with <=8B params."
-            )
-            return
-
         try:
             model_ref = self.config.model_id
             if self.config.local_model_path:
@@ -55,6 +48,12 @@ class LLMClient:
                     self.error = f"Local model path not found: {p}"
                     return
                 model_ref = str(p)
+            elif not self._is_model_allowed(self.config.model_id):
+                self.error = (
+                    f"Model `{self.config.model_id}` is blocked by policy. "
+                    "Use an open-source model with <=8B params."
+                )
+                return
 
             self.model = AutoModelForCausalLM.from_pretrained(
                 model_ref,

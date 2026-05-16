@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import inspect
 from pathlib import Path
 
 import torch
@@ -110,15 +111,13 @@ def main():
         label_pad_token_id=-100,
     )
 
-    targs = TrainingArguments(
+    targs_kwargs = dict(
         output_dir=args.out,
         num_train_epochs=args.epochs,
         per_device_train_batch_size=args.bs,
         learning_rate=args.lr,
         logging_steps=args.logging_steps,
-        evaluation_strategy="steps",
         eval_steps=args.eval_steps,
-        save_strategy="steps",
         save_steps=args.save_steps,
         save_total_limit=1,
         load_best_model_at_end=True,
@@ -135,6 +134,18 @@ def main():
         dataloader_pin_memory=use_cuda,
         optim="adamw_torch_fused" if use_cuda else "adamw_torch",
     )
+    ta_params = inspect.signature(TrainingArguments.__init__).parameters
+    # Transformers compatibility: some versions use eval_strategy/save_strategy,
+    # while others use evaluation_strategy/save_strategy.
+    if "evaluation_strategy" in ta_params:
+        targs_kwargs["evaluation_strategy"] = "steps"
+    elif "eval_strategy" in ta_params:
+        targs_kwargs["eval_strategy"] = "steps"
+
+    if "save_strategy" in ta_params:
+        targs_kwargs["save_strategy"] = "steps"
+
+    targs = TrainingArguments(**targs_kwargs)
 
     device_label = "cpu"
     if use_cuda:

@@ -53,12 +53,12 @@ def _to_base(value: float, unit: str) -> Tuple[float, str]:
     return value, unit
 
 
-def parse_quantities(question: str) -> Dict[str, float]:
-    found: Dict[str, float] = {}
+def parse_quantities(question: str) -> Dict[str, List[float]]:
+    found: Dict[str, List[float]] = {}
     for m in NUM_UNIT_RE.finditer(question.replace("=", " ")):
         v = float(m.group(1))
         b, u = _to_base(v, m.group(2))
-        found[u] = b
+        found.setdefault(u, []).append(b)
     return found
 
 
@@ -96,29 +96,30 @@ class PhysicsEngine:
     def _deterministic_solve(self, question: str) -> Optional[Dict[str, object]]:
         q = question.lower()
         vals = parse_quantities(question)
+        scalar_vals = {k: v[-1] for k, v in vals.items() if v}
         premises: List[str] = []
         cot = ["Extracted values and normalized units."]
 
-        if "current" in q and "V" in vals and "ohm" in vals and vals["ohm"] != 0:
-            i = vals["V"] / vals["ohm"]
+        if "current" in q and "V" in scalar_vals and "ohm" in scalar_vals and scalar_vals["ohm"] != 0:
+            i = scalar_vals["V"] / scalar_vals["ohm"]
             premises = ["Ohm's law: V=IR"]
             cot.append("Used I=V/R.")
             return {"answer": f"{fmt(i)} A", "premises": premises, "cot": cot}
 
-        if "voltage" in q and "A" in vals and "ohm" in vals:
-            v = vals["A"] * vals["ohm"]
+        if "voltage" in q and "A" in scalar_vals and "ohm" in scalar_vals:
+            v = scalar_vals["A"] * scalar_vals["ohm"]
             premises = ["Ohm's law: V=IR"]
             cot.append("Used V=IR.")
             return {"answer": f"{fmt(v)} V", "premises": premises, "cot": cot}
 
-        if "energy" in q and "capacitor" in q and "F" in vals and "V" in vals:
-            e = 0.5 * vals["F"] * vals["V"] * vals["V"]
+        if "energy" in q and "capacitor" in q and "F" in scalar_vals and "V" in scalar_vals:
+            e = 0.5 * scalar_vals["F"] * scalar_vals["V"] * scalar_vals["V"]
             premises = ["Capacitor energy: E=0.5CV^2"]
             cot.append("Used E=0.5CV^2.")
             return {"answer": f"{fmt(e)} J", "premises": premises, "cot": cot}
 
-        if "capacitance" in q and "C" in vals and "V" in vals and vals["V"] != 0:
-            c = vals["C"] / vals["V"]
+        if "capacitance" in q and "C" in scalar_vals and "V" in scalar_vals and scalar_vals["V"] != 0:
+            c = scalar_vals["C"] / scalar_vals["V"]
             premises = ["Capacitance: C=Q/V"]
             cot.append("Used C=Q/V.")
             return {"answer": f"{fmt(c)} F", "premises": premises, "cot": cot}

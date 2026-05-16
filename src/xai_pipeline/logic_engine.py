@@ -65,15 +65,18 @@ def parse_rules_regex(premises: List[str]) -> Tuple[Set[str], List[Tuple[str, st
         m = ALL_RE.match(s)
         if m:
             a, b = _to_atom(m.group(1)), _to_atom(m.group(2))
-            facts.add(a)
             rules.append((a, b))
             # For quantified statements, also retain predicate-only abstractions.
             pa = _predicate_from_clause(m.group(1))
             pb = _predicate_from_clause(m.group(2))
-            if pa:
-                facts.add(pa)
             if pa and pb:
                 rules.append((pa, pb))
+            continue
+
+        # Fallback fact extraction for simple declarative premises.
+        fact = _predicate_from_clause(s)
+        if fact:
+            facts.add(fact)
     return facts, rules
 
 
