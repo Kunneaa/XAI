@@ -1,9 +1,9 @@
 import argparse
 import json
 import os
-import platform
 from pathlib import Path
 
+import torch
 from datasets import Dataset
 from transformers import (
     AutoModelForCausalLM,
@@ -36,30 +36,33 @@ def main():
     ap.add_argument("--data", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--epochs", type=int, default=1)
-    ap.add_argument("--bs", type=int, default=1)
+    ap.add_argument("--bs", type=int, default=2)
     ap.add_argument("--lr", type=float, default=2e-5)
-    ap.add_argument("--use-cpu", action="store_true", help="Force CPU instead of GPU (recommended for Mac)")
+    ap.add_argument("--grad-accum", type=int, default=8, help="Gradient accumulation steps")
+    ap.add_argument("--max-len", type=int, default=512, help="Max token length")
+    ap.add_argument("--warmup-ratio", type=float, default=0.03)
+    ap.add_argument("--weight-decay", type=float, default=0.01)
+    ap.add_argument("--save-steps", type=int, default=200)
+    ap.add_argument("--logging-steps", type=int, default=10)
+    ap.add_argument("--use-cpu", action="store_true", help="Force CPU even if CUDA is available")
     args = ap.parse_args()
 
-    # On Mac, prefer CPU for stability
-    is_mac = platform.system() == "Darwin"
-    use_cpu = args.use_cpu or is_mac
-    
-    # Disable MPS for stability
-    os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
-    
+    use_cpu = args.use_cpu or not torch.cuda.is_available()
+    use_cuda = not use_cpu
+
     # Convert to absolute path if relative
     model_path = Path(args.model).resolve()
-    
-    # Determine device
     device_map = "cpu" if use_cpu else "auto"
-    
+
+    # T4 supports fp16 well; bf16 is not supported.
+    model_dtype = torch.float32 if use_cpu else torch.float16
+
     # Check if it's a local path, load locally; otherwise load from HF
     if model_path.exists():
         tok = AutoTokenizer.from_pretrained(str(model_path), local_files_only=True)
         model = AutoModelForCausalLM.from_pretrained(
-            str(model_path), 
-            torch_dtype="float32",
+            str(model_path),
+            torch_dtype=model_dtype,
             device_map=device_map,
             local_files_only=True,
             low_cpu_mem_usage=True,
@@ -67,8 +70,8 @@ def main():
     else:
         tok = AutoTokenizer.from_pretrained(args.model)
         model = AutoModelForCausalLM.from_pretrained(
-            args.model, 
-            torch_dtype="float32",
+            args.model,
+            torch_dtype=model_dtype,
             device_map=device_map,
             low_cpu_mem_usage=True,
         )
@@ -79,12 +82,14 @@ def main():
     # Enable gradient checkpointing to save memory
     if hasattr(model, "gradient_checkpointing_enable"):
         model.gradient_checkpointing_enable()
+    if hasattr(model, "config"):
+        model.config.use_cache = False
 
     rows = load_jsonl(Path(args.data))
     ds = Dataset.from_list([{"text": build_text(r)} for r in rows])
 
     def tok_fn(batch):
-        x = tok(batch["text"], truncation=True, max_length=256)
+        x = tok(batch["text"], truncation=True, max_length=args.max_len)
         x["labels"] = x["input_ids"].copy()
         return x
 
@@ -101,16 +106,28 @@ def main():
         num_train_epochs=args.epochs,
         per_device_train_batch_size=args.bs,
         learning_rate=args.lr,
-        logging_steps=10,
-        save_steps=100,
+        logging_steps=args.logging_steps,
+        save_steps=args.save_steps,
         save_total_limit=1,
         report_to="none",
-        gradient_accumulation_steps=1,
+        gradient_accumulation_steps=args.grad_accum,
         max_grad_norm=0.5,
-        weight_decay=0.01,
-        warmup_steps=50,
-        fp16=False,
+        weight_decay=args.weight_decay,
+        warmup_ratio=args.warmup_ratio,
+        lr_scheduler_type="cosine",
+        fp16=use_cuda,
         bf16=False,
+        dataloader_pin_memory=use_cuda,
+        optim="adamw_torch_fused" if use_cuda else "adamw_torch",
+    )
+
+    device_label = "cpu"
+    if use_cuda:
+        device_label = f"cuda ({torch.cuda.get_device_name(0)})"
+    print(f"[train_sft] device={device_label}")
+    print(
+        f"[train_sft] bs={args.bs}, grad_accum={args.grad_accum}, "
+        f"max_len={args.max_len}, epochs={args.epochs}, lr={args.lr}"
     )
 
     trainer = Trainer(
