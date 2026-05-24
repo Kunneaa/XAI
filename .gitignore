@@ -3,3 +3,9 @@ training/checkpoints/
 training/competition_sft.jsonl
 **/__pycache__/
 *.pyc
+.pytest_cache/
+.pycache/
+.venv/
+logs/
+qwen_endpoint.env
+.DS_Store

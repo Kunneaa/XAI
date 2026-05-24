@@ -1,14 +1,16 @@
-# XAI Challenge Summary
+# Physics XAI Challenge Summary
 
-This repository contains two datasets and a concise guide to the core requirements of the XAI competition.
+This repository is scoped to the **Physics** part of the XAI challenge only.
 
-## Competition Goals
+The goal is to build an explainable Physics QA system that returns accurate answers with concise, verifiable explanations while using only open-source LLM components with model size <= 8B parameters.
+
+## Evaluation Goals
 
 Systems are evaluated on three dimensions:
 
-- **P1: Correctness of Answers** - accuracy and precision of final answers.
+- **P1: Correctness of Answers** - accuracy and precision of final Physics answers.
 - **P2: Quality of Explanation** - clear, coherent, and verifiable natural-language justification.
-- **P3: Depth of Reasoning** - evidence of structured reasoning (e.g., premises, FOL, derivations, stepwise logic).
+- **P3: Depth of Reasoning** - evidence of structured reasoning, formulas, derivations, unit conversions, and verification.
 
 ## Mandatory Rules
 
@@ -16,131 +18,128 @@ Systems are evaluated on three dimensions:
    - Explanations should be concise, interpretable, and verifiable.
 
 2. **Only open-source LLMs are allowed**.
-   - Any LLM used in the system (answering, reasoning, NL-to-logic, etc.) must be open-source.
+   - Any LLM used in planning, extraction, explanation polishing, or routing must be open-source.
    - Maximum model size: **8B parameters**.
 
 3. **External data usage must be fully disclosed**.
-   - All external datasets used for fine-tuning LLMs or symbolic components must be declared.
+   - Any external datasets used for fine-tuning, retrieval, symbolic components, or evaluation must be declared.
 
 ## Prohibited
 
-- Using closed-source/commercial LLMs (e.g., GPT, Claude, Gemini).
+- Using closed-source/commercial LLMs such as GPT, Claude, or Gemini.
+- Returning unverified numerical answers directly from an LLM.
 - Hiding or failing to disclose external training/fine-tuning data.
 
-Violations can lead to **disqualification**.
-
-## Encouraged Approach
-
-- Integrate a symbolic reasoning component (e.g., Z3 or custom engine) to verify results and strengthen explainability.
-- Symbolic reasoning is encouraged, not mandatory.
-
-## Dataset Overview
-
-### 1) Logic-Based Educational Queries
-
-- **File**: `Logic_Based_Educational_Queries.json`
-- **Scale**: 464 records, 913 questions.
-- **Domain**: university policies and regulations (grading, enrollment, scholarships, requirements, etc.).
-- **Question types**: Multiple Choice, Yes/No/Uncertain, open-ended.
-- **Provided fields include**:
-  - Premises in natural language (`premises-NL`)
-  - Premises in FOL
-  - Questions
-  - Ground-truth answers
-  - Human-written explanations
-- **Evaluation-time input**: question + natural-language premises.
-- Teams may process premises in any way (prompt context, FOL conversion, symbolic solving, etc.).
-
-### 2) Physics Problems
+## Physics Dataset
 
 - **File**: `Physics_Problems_Text_Only.csv`
-- **Scale**: 5,520 text-only problems.
-- **Domain**: electric circuits and electrostatics (resistance, voltage, current, power, capacitance, electric fields, energy).
-- **Nature**: numerical, multi-step computation.
-- **Dataset annotations**: step-by-step CoT and final numerical answer with unit.
-- **Evaluation-time input**: **question only** (no extra context provided).
-- Source references used to build this dataset will be announced at the kick-off workshop.
+- **Current local scale**: 1,350 text-only problems
+- **Columns**: `id`, `question`, `cot`, `answer`, `unit`
+- **Missing fields**: none in the current local file
+- **Duplicate ids/questions**: none in the current local file
+- **Domain**: electric circuits and electrostatics, including resistance, voltage, current, power, capacitance, electric fields, Coulomb force, energy, LC/RLC circuits, inductance, and magnetic fields.
+- **Evaluation-time input**: question only
 
-## Test Format
+## Physics Answer Types
 
-The official test set combines both dataset types:
+The system must support:
 
-- Type 1: question + premises-NL
-- Type 2: question only
+- Numeric answers with units
+- Symbolic expressions
+- Conceptual answers
+- Yes/No answers
+- Multi-output answers such as `A; A`, `cm; %`, or `μC; μJ`
+- Vector/electrostatic geometry problems
 
-Question formats may include:
+Common units in the local file include:
 
-- Multiple choice
-- Yes/No/Uncertain
-- Open-ended reasoning
-- Numerical computation
+```text
+N, V/m, -, V, J, Ω, A, W, μF, nC, pF, %, mJ, nJ, Hz, H, mH, N/C, cm, C
+```
 
-Topic distribution percentages will be announced at the kick-off workshop.
+## Proposed System Design
 
-## Evaluation Process
+The current system design is documented in:
 
-- **Phase 1 & 2 (Selection)**:
-  - Automatic scoring against ground truth
-  - Committee review of explanation quality
-- **Final Round**:
-  - Live run on unseen queries
-  - Challenge Chairs directly evaluate answer quality, explanation quality, and reasoning depth
-- **Final score**:
-  - Weighted combination of P1, P2, P3
-  - Exact weights released with official dataset release
+- `Physics_XAI_Core.md`
 
-## Submission Requirements
+Core rule:
 
-Each team must submit:
+```text
+Qwen plans. Deterministic code solves. Verifier decides confidence.
+```
 
-1. An **API endpoint**
-2. A **1-page solution description** including:
-   - approach
-   - models used
-   - datasets used for training
+The local model in `models/` is Qwen2.5-7B-Instruct. It should be used as a planner/router/extractor, not as the final numerical calculator.
 
-### API Output Schema
+Recommended architecture:
+
+```text
+cache
+-> normalizer
+-> implicit KB
+-> deterministic router
+-> fast solver
+-> retrieval helper when needed
+-> Qwen planner when needed
+-> schema validator
+-> unit converter
+-> deterministic executor
+-> verifier
+-> trace-based explanation
+-> answer checker
+-> response
+```
+
+## Anti-Hallucination Requirements
+
+- Qwen output must be treated as an untrusted proposal until validated.
+- Qwen must not compute final numerical answers.
+- Qwen must not invent formulas, constants, units, diagrams, assumptions, or code.
+- Formula IDs, principle IDs, geometry templates, implicit rules, task types, and answer types must come from code-owned allowlists.
+- Numerical answers must come from deterministic formula execution, SymPy, bounded numerical fallback, or deterministic geometry code.
+- Every high-confidence numerical answer must pass unit checks and verifier checks.
+- Explanations should be generated from execution trace, not from free-form LLM reasoning.
+
+## API Output Schema
 
 Required fields:
 
 - `answer`
 - `explanation`
 
-Optional but encouraged fields (help with reasoning-depth evaluation):
+Recommended fields:
 
-- `fol`
 - `cot`
 - `premises`
 - `confidence`
+- `metadata`
 
 Example:
 
 ```json
 {
-  "answer": "B",
-  "explanation": "The voltage across R2 is calculated using ...",
-  "fol": "∀x (Resistor(x) → HasVoltage(x, V))",
+  "answer": "0.045 J",
+  "explanation": "Use W = 1/2 C U^2. Convert C = 100 μF = 100e-6 F. Substitute U = 30 V, so W = 0.045 J.",
   "cot": [
-    "Step 1: Identify the circuit topology ...",
-    "Step 2: Apply Kirchhoff's voltage law ...",
-    "Step 3: Solve for the unknown voltage ..."
+    "Identify capacitance and voltage.",
+    "Convert capacitance to SI units.",
+    "Apply the verified capacitor energy relation."
   ],
   "premises": [
-    "Ohm's law: V = IR",
-    "KVL: sum of voltages in a loop = 0"
+    "W = 1/2 C U^2",
+    "1 μF = 10^-6 F"
   ],
-  "confidence": 0.92
+  "confidence": 0.95
 }
 ```
-
-> Note: The final submission format may be refined at the kick-off workshop.
 
 ## Practical Compliance Checklist
 
 - [ ] Every response includes both `answer` and `explanation`.
 - [ ] All LLM components are open-source and <= 8B parameters.
 - [ ] No closed-source models are used anywhere in the pipeline.
-- [ ] All external training/fine-tuning data are documented.
-- [ ] Reasoning artifacts (FOL/steps/premises/confidence) are included when possible.
-- [ ] API output conforms to required JSON fields.
-
+- [ ] Qwen is used only for planning/extraction/routing or guarded wording polish.
+- [ ] Final numerical answers are produced by deterministic code, not by Qwen.
+- [ ] Unit conversion and answer verification are deterministic.
+- [ ] External data used for training, retrieval, or fine-tuning is documented.
+- [ ] API output conforms to the required schema.
