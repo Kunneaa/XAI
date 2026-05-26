@@ -18,11 +18,12 @@ Systems are evaluated on three dimensions:
    - Explanations should be concise, interpretable, and verifiable.
 
 2. **Only open-source LLMs are allowed**.
-   - Any LLM used in planning, extraction, explanation polishing, or routing must be open-source.
+   - Any LLM used in semantic parsing or bounded repair must be open-source.
    - Maximum model size: **8B parameters**.
 
 3. **External data usage must be fully disclosed**.
-   - Any external datasets used for fine-tuning, retrieval, symbolic components, or evaluation must be declared.
+   - The primary local data file is `Physics_Problems_Text_Only.csv`.
+   - Any additional data used for fine-tuning, symbolic components, or evaluation must be declared.
 
 ## Prohibited
 
@@ -33,7 +34,7 @@ Systems are evaluated on three dimensions:
 ## Physics Dataset
 
 - **File**: `Physics_Problems_Text_Only.csv`
-- **Current local scale**: 1,350 text-only problems
+- **Current local scale**: 1,347 text-only problems
 - **Columns**: `id`, `question`, `cot`, `answer`, `unit`
 - **Missing fields**: none in the current local file
 - **Duplicate ids/questions**: none in the current local file
@@ -66,39 +67,103 @@ The current system design is documented in:
 Core rule:
 
 ```text
-Qwen plans. Deterministic code solves. Verifier decides confidence.
+Deterministic code normalizes facts and units.
+Fine-tuned local LLM may propose a schema-bound Structured Solve Plan.
+Plan compiler validates registry-backed executable steps.
+Deterministic code solves. Verifier decides confidence.
 ```
 
-The local model in `models/` is Qwen2.5-7B-Instruct. It should be used as a planner/router/extractor, not as the final numerical calculator.
-
-Recommended architecture:
+The current local model artifact in `models/` is:
 
 ```text
-cache
--> normalizer
--> implicit KB
--> deterministic router
--> fast solver
--> retrieval helper when needed
--> Qwen planner when needed
--> schema validator
--> unit converter
--> deterministic executor
--> verifier
--> trace-based explanation
+adapter: models/deepseek-r1-distill-qwen-7b-exact-lora
+type: PEFT LoRA SFT adapter
+base model required at runtime: models/DeepSeek-R1-Distill-Qwen-7B
+tokenizer: Qwen2Tokenizer
+```
+
+The repository currently contains the fine-tuned adapter, not the full base model.
+Runtime loading must attach this adapter to the matching open-source base model
+declared in `adapter_config.json`. If the base model is absent, the system must
+disable LLM-assisted paths and continue with deterministic-only behavior.
+
+The fine-tuned model may be used for structured solve-plan proposal, semantic
+audit, or bounded repair when that path is enabled. It must not be used as the
+final numerical calculator.
+
+Current core architecture:
+
+```text
+runtime/cache
+-> frontend/semantic_parser
+-> frontend/canonical structure normalization
+-> engines/logic_engine
+-> knowledge/constraint_graph
+-> knowledge/formula_catalog
+-> planning/solve_plan
+-> planning/plan_compiler
+   -> if invalid: strict error packet -> one local LLM re-plan attempt
+-> grounded conceptual solver when applicable
+-> engines/equation_engine
+-> engines/spatial_engine
+-> verification/verifier
+-> xai/trace / xai/explanation
 -> answer checker
--> response
+-> runtime/telemetry / response
 ```
 
 ## Anti-Hallucination Requirements
 
-- Qwen output must be treated as an untrusted proposal until validated.
-- Qwen must not compute final numerical answers.
-- Qwen must not invent formulas, constants, units, diagrams, assumptions, or code.
+- Fine-tuned LLM output must be treated as an untrusted proposal until validated.
+- LLM "CoT" must be represented as per-step `public_cot` labels inside a Structured Solve Plan, not free-form reasoning.
+- The fine-tuned LLM must not compute final numerical answers.
+- The fine-tuned LLM must not invent formulas, constants, units, diagrams, assumptions, or code.
+- No raw natural-language LLM reasoning may be executed.
 - Formula IDs, principle IDs, geometry templates, implicit rules, task types, and answer types must come from code-owned allowlists.
-- Numerical answers must come from deterministic formula execution, SymPy, bounded numerical fallback, or deterministic geometry code.
+- Numerical answers must come from deterministic formula execution, CAS-lite registry equation graphs, or deterministic geometry code.
 - Every high-confidence numerical answer must pass unit checks and verifier checks.
-- Explanations should be generated from execution trace, not from free-form LLM reasoning.
+- Explanations should be generated from the Proof DAG and execution trace, not from free-form LLM reasoning.
+- Public reasoning must describe the structure of the proof path: semantic facts, constraint graph selection, deterministic execution, unit handling, and verifier acceptance.
+- Each question type uses a code-owned output-format contract: numeric scalar, dimensionless numeric, symbolic expression, conceptual text, yes/no, ordered multi-output, or controlled fallback.
+- Repeated quantities must be scoped by entity/state before contradiction checks.
+- Surface labels must be canonicalized before solving, so `ABC`, `MNQ`, `PQR`, `q1/q2`, and `qM/qN` can map to the same structural problem when the evidence supports it.
+- Compound symbolic relations such as `LCω² = 1` must not become hidden-unit quantities.
+- Dataset-shaped formula cards such as one-off quadrature/segment patterns must not stay in the active registry.
+- Geometry-specific symbolic answers must be derived from general vector laws plus deterministic coordinate constructors, not stored as one-off formula cards.
+- Direct scalar circuit formulas must abstain when multiple components exist without canonical topology.
+- Explicit simple series/parallel topology may be solved by deterministic topology rules; ambiguous branch/node topology still abstains.
+- Conceptual and Yes/No answers must be grounded by derived logic facts or registry-owned SI-unit facts.
+- Cheap redundant formula paths should be compared when available.
+- Multi-output answers should be solved as ordered target branches, not collapsed into one scalar target.
+- Local LLM plan proposal/refinement/repair must fail closed unless a schema-bound local backend is available.
+- Invalid LLM plans may be repaired once from a compiler error packet; unvalidated repaired plans are never executed.
+- Proof DAGs should carry reproducible audit certificates.
+
+Current deterministic smoke status:
+
+```text
+unit/full tests: 56 passed, 1353 subtests passed
+dataset batch: 1347 / 1347 verified, 0 Uncertain, 0 errors
+active executable registry: 151 formula IDs, 195 total registry cards
+registry family coverage: 11 law families, 0 uncovered executable IDs
+```
+
+Manual local model runner:
+
+```text
+PYTHONPATH=src .venv/bin/python3 manual_question_test.py --llm-status
+PYTHONPATH=src .venv/bin/python3 manual_question_test.py --llm-probe --max-new-tokens 16 --llm-hard-timeout 45
+PYTHONPATH=src .venv/bin/python3 manual_question_test.py --direct-llm --max-new-tokens 64 --llm-hard-timeout 70 "A resistor R = 10 Ω has voltage U = 20 V. Find the current I."
+PYTHONPATH=src .venv/bin/python3 manual_question_test.py --direct-llm --timeout -1 --llm-generate-max-time 0 --llm-hard-timeout 0 --max-new-tokens 256 --output-json /private/tmp/manual_result.json "A resistor R = 10 Ω has voltage U = 20 V. Find the current I."
+```
+
+The LoRA adapter is present at `models/deepseek-r1-distill-qwen-7b-exact-lora`.
+Actual generation also requires the local base model directory
+`models/DeepSeek-R1-Distill-Qwen-7B` and optional dependencies listed in
+`requirements.txt`. On Apple Silicon, use `--apple-mps` to select `mps`,
+`float16`, JSON prefill, and JSON early stop. In `llm_required` mode the system
+fails closed if the model is unavailable, too slow, or emits invalid JSON; in
+`hybrid` mode deterministic planning may be used for coverage debugging.
 
 ## API Output Schema
 
@@ -138,8 +203,10 @@ Example:
 - [ ] Every response includes both `answer` and `explanation`.
 - [ ] All LLM components are open-source and <= 8B parameters.
 - [ ] No closed-source models are used anywhere in the pipeline.
-- [ ] Qwen is used only for planning/extraction/routing or guarded wording polish.
-- [ ] Final numerical answers are produced by deterministic code, not by Qwen.
+- [ ] The fine-tuned local LLM is used only for structured solve-plan proposal, semantic audit, or bounded repair when enabled.
+- [ ] Final numerical answers are produced by deterministic code, not by the fine-tuned LLM.
 - [ ] Unit conversion and answer verification are deterministic.
-- [ ] External data used for training, retrieval, or fine-tuning is documented.
+- [ ] Unverified deterministic candidates are exposed only as audit artifacts, never as final answers.
+- [ ] Proof traces include a certificate/digest for replay and regression checks.
+- [ ] External data used for training or fine-tuning is documented.
 - [ ] API output conforms to the required schema.

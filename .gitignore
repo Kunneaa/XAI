@@ -7,5 +7,6 @@ training/competition_sft.jsonl
 .pycache/
 .venv/
 logs/
+Physics_Problems_Text_Only_*_llm.csv
 qwen_endpoint.env
 .DS_Store

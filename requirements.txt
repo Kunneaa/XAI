@@ -1,13 +1,12 @@
-# Core pipeline (model-only)
-pandas>=2.0.0
-transformers>=4.40.0
-torch>=2.1.0
-accelerate>=0.28.0
-sentencepiece>=0.2.0
-safetensors>=0.4.0
-z3-solver>=4.13.0
-scikit-learn>=1.4.0
-sentence-transformers>=3.0.0
-datasets>=2.20.0
-sympy>=1.12.0
-scipy>=1.13.0
+# NSP-Core runtime currently uses only the Python standard library.
+# Keep dependencies explicit and minimal; add optional LLM/CAS packages only
+# when a core module imports them directly.
+pytest>=8.0.0
+# Optional local model runtime for manual_question_test.py --enable-llm.
+# The base model directory must also exist locally:
+#   models/DeepSeek-R1-Distill-Qwen-7B
+torch>=2.7.0
+transformers>=4.45.0
+peft>=0.13.0
+accelerate>=0.34.0
+safetensors>=0.4.5

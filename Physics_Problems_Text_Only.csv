@@ -219,11 +219,6 @@ LD053,"At two points A and B, separated by 10 cm in the air, two charges q1 = -q
 Step 2: Determine the geometry of points A, B, and C.
 Step 3: Calculate the magnitude of the electric field E1 at C due to charge q1.
 Step 4: Calculate the magnitude of the electric field E2 at C due to charge q2.",3.125 × 10^6,V/m
-LD054,"Two point charges, q1 = 6 × 10^-6 C and q2 = -6 × 10^-6 C, are placed in air at points A and B, separated by 10 cm.
- Calculate the electric force exerted on a charge q3 = -3 × 10^-8 C placed at C.","Step 1: Identify the given values and the constant for electric force in air (vacuum).
-Step 2: Calculate the magnitude of the electric field produced by each charge at point C.
-Step 3: Determine the direction of E1 and E2 and resolve their components.
-Step 4: Calculate the total electric field strength E_C at point C.",0.094,N
 LD055,"At two points A and B, separated by 10 cm in air, two electric charges q1 = q2 = 16 × 10^-8 C are placed. Determine the electrostatic force acting on charge q3 = 2 × 10^-6 C, which is placed at point C. Given that AC = BC = 8 cm.","Step 1: q1 = 16 × 10^-8 C, q2 = 16 × 10^-8 C, q3 = 2 × 10^-6 C. Coulomb's constant k = 9 × 10^9 N×m²/C².
 Step 2: AC = 8 cm = 0.08 m, BC = 8 cm = 0.08 m, AB = 10 cm = 0.10 m.
 Step 3: F13 = (9 × 10^9 N×m²/C²) × |(16 × 10^-8 C) × (2 × 10^-6 C)| / (0.08 m)^2 = 0.45 N.
@@ -232,10 +227,6 @@ LD056,"At two points A and B, separated by 20 cm in air, two point charges q1 = 
 Step 2: The electric field E1 due to q1 at C is E1 = (9 × 10^9 N m^2/C^2) × |4 × 10^-6 C| / (0.12 m)^2 = 2.5 × 10^6 N/C. This field points along the line CA, away from q1.
 Step 3: The electric field E2 due to q2 at C is E2 = (9 × 10^9 N m^2/C^2) × |-6.4 × 10^-6 C| / (0.16 m)^2 = 2.25 × 10^6 N/C. This field points along the line CB, towards q2.
 Step 4: Since E1 and E2 are perpendicular at C, the magnitude of the resultant electric field E_C is E_C = sqrt(E1^2 + E2^2) = sqrt((2.5 × 10^6 N/C)^2 + (2.25 × 10^6 N/C)^2) = sqrt(6.25 × 10^12 + 5.0625 × 10^12) N/C = sqrt(11.3125 × 10^12) N/C = 3.36 × 10^6 N/C.",33.6 × 10^5,V/m
-LD057,"At two points A and B, 20 cm apart in the air, two charges q1 = 4 × 10^-6 C and q2 = -6.4 × 10^-6 C are placed. Determine the electric force acting on a charge q3 = -5 × 10^-8 C placed at C.","Step 1: Convert given distances from centimeters to meters.
-Step 2: Verify the geometry of points A, B, and C by checking if they form a right-angled triangle.
-Step 3: Calculate the magnitude of the electric field (E1) at point C due to charge q1 at A, using Coulomb's constant k = 9 × 10^9 N m^2/C^2.
-Step 4: Calculate the magnitude of the electric field (E2) at point C due to charge q2 at B, using Coulomb's constant k = 9 × 10^9 N m^2/C^2.",0.17,N
 LD058,"Two charges, q1 = -1.6 × 10^-6 C and q2 = -2.4 × 10^-6 C, are placed at points A and B, respectively, which are 10 cm apart in air. Determine the electric field strength at point C due to these two charges. Given that AC = 8 cm and BC = 6 cm.","Step 1: Identify the given charges and distances: charge q1 = -1.6 × 10^-6 C at A, charge q2 = -2.4 × 10^-6 C at B, distance AC = 8 cm, distance BC = 6 cm, and distance AB = 10 cm.
 Step 2: Determine the geometry of the triangle formed by points A, B, and C. Since AC^2 + BC^2 = (8 cm)^2 + (6 cm)^2 = 64 cm^2 + 36 cm^2 = 100 cm^2, and AB^2 = (10 cm)^2 = 100 cm^2, it follows that AC^2 + BC^2 = AB^2. Therefore, triangle ABC is a right-angled triangle with the right angle at point C.
 Step 3: State the value of Coulomb's constant (k) for air, which is k = 9 × 10^9 N m^2/C^2. Convert distances to meters: r1 = AC = 0.08 m and r2 = BC = 0.06 m.
@@ -6908,10 +6899,6 @@ Step 3: Calculate the impedance of segment MB
 Segment MB consists of R₂ and L in series, so its impedance Z_MB is calculated as Z_MB = √(R₂² + Z_L²) = √(10² + 500) = √(100 + 500) = √600 = 10√6 ≈ 24.49 Ω.
 Step 4: Calculate the RMS voltage U_MB
 Substitute the values into the formula U_MB = I × Z_MB: U_MB = 1.25 × 10√6 = 12.5√6 ≈ 30.62 V.",30.62,V
-CH241,"Given a circuit AB with R1 = 20 Ω and R2 = 50 Ω, satisfying the conditions LCω² = 1 (meaning inductive reactance equals capacitive reactance) and the voltage across segment AM (u_AM) is 90 degrees out of phase with the voltage across segment MB (u_MB).","Step 1: Identify the given values and conditions for the circuit AB.
-Step 2: Recognize that ""LCω² = 1"" implies the inductive reactance (XL) equals the capacitive reactance (XC). Let this common reactance be X.
-Step 3: Interpret ""u_AM is 90 degrees out of phase with u_MB"" for a series circuit of AM and MB. This condition, combined with the presence of R1, R2, L, C, implies that segment AM contains R1 and C in series (Z_AM = R1 - jX), and segment MB contains R2 and L in series (Z_MB = R2 + jX). For their voltages to be 90 degrees out of phase, the product of their resistances must equal the product of their reactances: R1 × R2 = XC × XL.
-Step 4: Using the conditions from Step 2 and Step 3, calculate the common reactance X. Since XL = XC = X and R1 × R2 = XC × XL, it follows that X² = R1 × R2.",172.73,W
 CH242,"Consider an AB circuit with R1 = 30 Ω, R2 = 40 Ω, satisfying LCω² = 1 and where u_AM is in quadrature with u_MB. The total power consumed by the entire circuit when a voltage U = 100 V is applied across AB is 142.86 W. If the same voltage is applied across the MB segment (R2 + L), what is the power consumed by MB?","Step 1: Analyze resonance and phase conditions
 From LCω² = 1 we obtain Z_L = Z_C. Since u_AM is perpendicular to u_MB (90° phase difference), we have the linking relationship between the components Z_L² = Z_C² = R₁ × R₂ = 30 × 40 = 1200.
 Step 2: Determine the impedance of segment MB
